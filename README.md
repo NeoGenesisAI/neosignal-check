@@ -18,7 +18,7 @@ python check.py .
   GONE   arcee-ai/virtuoso-large      GONE from the catalogue on 2026-08-29,
                                       with no date in it beforehand
          src/agent.ts
-  SOON   moonshotai/kimi-k2.5         shuts down 2026-08-31 - 2 days left
+  SOON   moonshotai/kimi-k2.5         shuts down 2026-08-31 - 1 days left
          src/agent.ts
 
 2 need attention.
@@ -82,7 +82,7 @@ reading that catalogue could have warned you.
 | 2026-07-30 | `openai/o3-deep-research` | **none** | _nothing qualifies_ |
 | 2026-07-30 | `openai/gpt-5-codex` | **none** | `openai/gpt-5.1-codex` |
 
-As of 2026-08-29.
+As of 2026-08-30.
 <!--evidence:end--> The live list is always at
 [neosignal-ai.vercel.app/gone.html](https://neosignal-ai.vercel.app/gone.html),
 and the raw records are in
@@ -102,22 +102,22 @@ vendor pages, so it cannot tell you the model is retired. This reads both, every
 day, and the overlap is where these live.
 
 <!--stale:start-->
-**15 models are still listed after the vendor retired them.** The oldest by 715 days.
+**15 models are still listed after the vendor retired them.** The oldest by 716 days.
 
 | model | vendor's retirement date | days still listed since |
 |---|---|---|
-| `openai/gpt-3.5-turbo-0613` | 2024-09-13 | **715** |
-| `mistralai/mistral-large-2407` | 2025-03-30 | **517** |
-| `google/gemini-2.5-pro-preview-05-06` | 2025-12-02 | **270** |
-| `anthropic/claude-3-haiku` | 2026-04-20 | **131** |
-| `google/gemini-3.1-flash-lite-preview` | 2026-05-25 | **96** |
-| `anthropic/claude-opus-4` | 2026-06-15 | **75** |
+| `openai/gpt-3.5-turbo-0613` | 2024-09-13 | **716** |
+| `mistralai/mistral-large-2407` | 2025-03-30 | **518** |
+| `google/gemini-2.5-pro-preview-05-06` | 2025-12-02 | **271** |
+| `anthropic/claude-3-haiku` | 2026-04-20 | **132** |
+| `google/gemini-3.1-flash-lite-preview` | 2026-05-25 | **97** |
+| `anthropic/claude-opus-4` | 2026-06-15 | **76** |
 
 and 9 more.
 
 3 of these are still served on a platform whose own end-of-life is later - AWS Bedrock, in every current case - so for those the catalogue may be routing somewhere the model has not retired. The catalogue does not name the provider behind an entry, so that cannot be settled from it, and they are counted above rather than quietly dropped. The other 12 have no such route that we can see.
 
-As of 2026-08-29.
+As of 2026-08-30.
 <!--stale:end-->
 
 Every row is checkable in one request from
