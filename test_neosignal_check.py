@@ -94,7 +94,7 @@ RAN = []
 # Checks this suite is known to run. Asserted as a FLOOR at the end of
 # main(): fewer means a section stopped executing, which reports as a
 # smaller green number and is otherwise invisible.
-EXPECTED_CHECKS = 138
+EXPECTED_CHECKS = 141
 
 
 def check(name, got, want):
@@ -260,6 +260,44 @@ def main():
               False)
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+    print("\nskipped directories, whatever their case")
+    # walk() lowercases a directory's name before it looks it up in SKIP_DIRS,
+    # so `Build` and `Node_Modules` are pruned exactly as `build` and
+    # `node_modules` are. Every skip case above is written in lowercase, so
+    # none of them exercises that `.lower()`: it could be removed and the whole
+    # suite stayed green. This section is written to fail without it - a
+    # vendored tree under any other spelling would be read in full, and every
+    # model id inside it reported as yours.
+    #
+    # A tree of its own, so the assertions can be exact; the shared tree above
+    # keeps accumulating fixtures, which is why its checks are subset tests.
+    # Each skipped directory sits BESIDE the source file and holds a supported
+    # file naming a catalogue model, so one the walk wrongly entered shows up
+    # as a finding.
+    skip_root = tempfile.mkdtemp(prefix="nsskip-")
+    try:
+        skip_src = os.path.join("svc", "api", "client.py")
+        write(skip_root, "svc/api/client.py",
+              'M = "anthropic/claude-haiku-4.5"\n')
+        for skip_name in ("Node_Modules", "DIST", ".GIT", "Build",
+                          "__PyCache__", "Site-Packages"):
+            write(skip_root, "svc/api/%s/pkg/a.py" % skip_name,
+                  'M = "openai/gpt-5-image"\n')
+
+        check("walk keeps the nested source and prunes every skipped spelling",
+              sorted(os.path.relpath(p, skip_root) for p in N.walk(skip_root)),
+              [skip_src])
+        skip_found = N.scan(skip_root, known, bare)
+        # The positive control. Without it the emptiness below passes just as
+        # well when scanning is broken and nothing at all is found.
+        check("the source beside them is still scanned",
+              skip_found.get("anthropic/claude-haiku-4.5"), [skip_src])
+        check("and nothing inside a skipped directory becomes a finding",
+              {m: fs for m, fs in skip_found.items()
+               if m != "anthropic/claude-haiku-4.5"}, {})
+    finally:
+        shutil.rmtree(skip_root, ignore_errors=True)
 
     print("\nverdicts")
     lvl, why, move = N.verdict("openai/gpt-5-codex", MODELS, CHANGES)
