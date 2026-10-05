@@ -94,7 +94,7 @@ RAN = []
 # Checks this suite is known to run. Asserted as a FLOOR at the end of
 # main(): fewer means a section stopped executing, which reports as a
 # smaller green number and is otherwise invisible.
-EXPECTED_CHECKS = 138
+EXPECTED_CHECKS = 149
 
 
 def check(name, got, want):
@@ -1015,6 +1015,94 @@ def main():
           link.split("#")[1].split(",")[0], "z/zz-9-broken")
     check("flagging nothing still returns a link",
           N.watch_url({"a/aa-1-ok": []}, []).endswith("#a/aa-1-ok"), True)
+
+    print("\nthe watch link with more flagged ids than room")
+    # No check above flags more than ONE id, so none of them reaches the edge
+    # the `flagged` argument exists for: more models with a finding than the
+    # link can carry. There WHICH 24 survive is the whole behaviour, and it is
+    # what a reader bookmarks. Asserted on the id list in the fragment, because
+    # that list is all a reader - or /w/ - ever receives.
+    #
+    # This pins an edge, not a bug that shipped. The healthy ids are named to
+    # sort BEFORE every flagged one ("a/" against "z/"), so a link that fell
+    # back to alphabetical order would fill up with exactly the models there
+    # was no reason to watch.
+    hot = ["z/dead-%02d" % i for i in range(30)]     # a finding each
+    fine = ["a/fine-%02d" % i for i in range(10)]    # nothing recorded
+    loose = ["~z/loose-%d" % i for i in range(3)]    # a `~` name, flagged too
+
+    def ids_in(link):
+        return link.split("#", 1)[1].split(",") if "#" in link else []
+
+    # A `~` id is dropped BEFORE the cap is counted, flagged or not. Pinned one
+    # short of the cap on purpose: "~" sorts after every letter, so with 24 or
+    # more real flagged ids a `~` one falls off the end by itself and the check
+    # would pass with the filter deleted. Only here is there a free slot for it
+    # to take. (scan() hands over catalogue ids only, so the `~` rows are fed in
+    # directly - the filter is the contract, whatever ends up producing them.)
+    link = N.watch_url({i: [] for i in hot[:23] + fine + loose}, hot[:23] + loose)
+    check("a ~ id is kept out of the link even when it is flagged",
+          "~" in link, False)
+    check("and does not use up the slot the next real id should get",
+          ids_in(link), hot[:23] + fine[:1])
+
+    # Exactly at the cap, then one over. Over is the case this section is for:
+    # the LAST flagged id is the one dropped, and a healthy id is not promoted
+    # into the room it leaves.
+    check("exactly at the cap every flagged id fits and nothing else does",
+          ids_in(N.watch_url({i: [] for i in hot[:24] + fine + loose},
+                             hot[:24] + loose)), hot[:24])
+    check("one over the cap the last flagged id is dropped, not swapped out",
+          ids_in(N.watch_url({i: [] for i in hot[:25] + fine + loose},
+                             hot[:25] + loose)), hot[:24])
+
+    # Stable AT the cap. The stability check above has two ids and never cuts
+    # anything, so it cannot tell a link that is sorted from one that is sorted
+    # only until something has to be left out. Here the ids arrive three ways -
+    # as given, reversed and interleaved - with `flagged` in the same order each
+    # time, because main() builds it from rows ranked by severity, not by name.
+    pool = hot + fine + loose
+    flagged = set(hot + loose)
+    links = [N.watch_url({i: [] for i in order},
+                         [i for i in order if i in flagged])
+             for order in (pool, pool[::-1], pool[::2] + pool[1::2])]
+    check("the same ids make the same link in any order, even when it cuts",
+          len(set(links)), 1)
+    check("and it is the first 24 flagged ids, sorted",
+          links[0], "%s/w/#%s" % (N.SITE, ",".join(hot[:24])))
+
+    # And through the command line, which is where a reader meets it. Every call
+    # above passes `flagged` by hand, so nothing would notice if main() stopped
+    # doing so: the link would quietly fall back to alphabetical order, which
+    # here lists the healthy ids first. The catalogue is built here rather than
+    # borrowed - the shared one is a miniature with the shapes that matter, and
+    # thirty synthetic removals would swamp it.
+    def run_main(path, models, changes):
+        out = io.StringIO()
+        real = (sys.stdout, sys.stderr, sys.argv, N.fetch)
+        sys.stdout, sys.stderr, sys.argv = out, io.StringIO(), ["check", path]
+        N.fetch = lambda url: ({"models": models} if url == N.MODELS_URL
+                               else {"changes": changes})
+        try:
+            rc = N.main()
+        finally:
+            sys.stdout, sys.stderr, sys.argv, N.fetch = real
+        return rc, out.getvalue()
+
+    watch_root = tempfile.mkdtemp(prefix="nswatch-")
+    try:
+        write(watch_root, "src/models.py",
+              "".join('M%d = "%s"\n' % (n, m) for n, m in enumerate(hot + fine)))
+        code, said = run_main(
+            watch_root,
+            {m: {} for m in fine},
+            {m: [{"type": "MODEL_REMOVED", "date": "2026-07-30"}] for m in hot})
+    finally:
+        shutil.rmtree(watch_root, ignore_errors=True)
+    check("a scan with findings exits 1", code, 1)
+    check("and its link is the first 24 of them, with no healthy id",
+          [ln for ln in said.splitlines() if ln.startswith("Watch these: ")],
+          ["Watch these: %s/w/#%s" % (N.SITE, ",".join(hot[:24]))])
 
     print("\nformatting")
     check("cheap prices keep three decimals", N.money(0.013), "$0.013")
