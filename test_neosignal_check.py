@@ -94,7 +94,7 @@ RAN = []
 # Checks this suite is known to run. Asserted as a FLOOR at the end of
 # main(): fewer means a section stopped executing, which reports as a
 # smaller green number and is otherwise invisible.
-EXPECTED_CHECKS = 138
+EXPECTED_CHECKS = 144
 
 
 def check(name, got, want):
@@ -462,6 +462,46 @@ def main():
     code, said = run_with(not_json)
     check("a 200 with an unusable body also exits 2", code, 2)
     check("and says so too", "NOT a pass" in said, True)
+
+    # A gzip body that is wrong rather than missing. The transfer section pins
+    # the two clean paths and the checks above replace fetch() outright, so
+    # nothing yet ran the real decompression and asked what the CLI says when it
+    # fails. run_with() swaps N.fetch, which IS the function that decompresses,
+    # so it is handed the real one and the transport underneath is what is faked.
+    def run_with_gzip_body(body):
+        real_urlopen = N.urllib.request.urlopen
+        N.urllib.request.urlopen = lambda *a, **k: FakeResponse(body, "gzip")
+        try:
+            return run_with(N.fetch)
+        finally:
+            N.urllib.request.urlopen = real_urlopen
+
+    # Both bodies carry a perfectly readable catalogue, on purpose. What is under
+    # test is a refusal, so the data has to be tempting: a tool that shrugged the
+    # damage off and read the JSON anyway would carry on instead of exiting 2.
+    #
+    # Scope, so this is not read as more than it is: these are failures
+    # gzip.decompress reports as an OSError, which main() already catches. A
+    # stream cut short raises EOFError and damaged deflate data raises
+    # zlib.error; neither is an OSError or a ValueError, and neither is covered.
+    #
+    # Damaged: header and deflate data intact, one byte of the CRC32 trailer
+    # flipped. XOR with 0xFF cannot leave a byte unchanged, so the mismatch does
+    # not depend on what the payload happens to be.
+    sound = gzip.compress(payload)
+    flipped = sound[:-8] + bytes([sound[-8] ^ 0xFF]) + sound[-7:]
+    code, said = run_with_gzip_body(flipped)
+    check("a gzip body that fails its checksum exits 2, not 0", code, 2)
+    check("and does not read as a pass", "NOT a pass" in said, True)
+    check("and says why: the checksum failed", "CRC check failed" in said, True)
+
+    # Mislabelled: a proxy that stamps Content-Encoding: gzip on bytes it never
+    # compressed. The response header decides, so the header is believed and the
+    # body refused - not quietly accepted as the plain JSON it happens to be.
+    code, said = run_with_gzip_body(payload)
+    check("a body labelled gzip that is not gzip exits 2, not 0", code, 2)
+    check("and does not read as a pass either", "NOT a pass" in said, True)
+    check("and says why: it is not a gzip file", "Not a gzipped file" in said, True)
 
     print("\nspellings that were being missed silently")
     # Each of these was measured as a miss on 2026-08-03 against the live
